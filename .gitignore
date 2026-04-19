@@ -172,3 +172,11 @@ best_model.json
 *.mp4
 runs/
 uv.lock
+
+# Blog post screenshot capture notebook (not part of public project)
+notebooks/capture_screenshots.ipynb
+
+# Research notes (not part of public project)
+notes/
+notebooks/explore.ipynb
+notebooks/analysis.ipynb

@@ -61,8 +61,11 @@ def create_analysis_image(
         target_pos = np.unravel_index(np.argmax(actual), actual.shape)
         sample_heatmap[target_pos] += 1
 
-    mse_loss_heatmap = np.where(
-        sample_heatmap > 0, mse_loss_heatmap / sample_heatmap, 0
+    mse_loss_heatmap = np.divide(
+        mse_loss_heatmap,
+        sample_heatmap,
+        out=np.zeros_like(mse_loss_heatmap),
+        where=sample_heatmap > 0,
     )
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))

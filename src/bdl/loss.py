@@ -59,8 +59,7 @@ def custom_doppler_loss(
     pred: torch.Tensor,
     target: torch.Tensor,
     peak_weight: float = 15.0,
-    shift_weight: float = 10.0,
-    spatial_weight: float = 8.0,
+    spatial_weight: float = 2.0,
     background_weight: float = 5.0,
     image_size: int = 28,
 ) -> torch.Tensor:
@@ -71,22 +70,12 @@ def custom_doppler_loss(
     # Basic MSE loss
     mse_loss = F.mse_loss(pred, target, reduction="mean")
 
-    # Peak intensity loss
+    # Peak intensity loss: drive max(pred) toward max(target) = 1.0
     peak_loss = F.mse_loss(pred.max(dim=-1)[0], target.max(dim=-1)[0])
 
-    # Shift loss with spatial awareness
-    pred_peak_pos = pred.argmax(dim=-1)
-    target_peak_pos = target.argmax(dim=-1)
-    pred_peak_y, pred_peak_x = pred_peak_pos // image_size, pred_peak_pos % image_size
-    target_peak_y, target_peak_x = (
-        target_peak_pos // image_size,
-        target_peak_pos % image_size,
-    )
-    shift_loss = F.l1_loss(pred_peak_y.float(), target_peak_y.float()) + F.l1_loss(
-        pred_peak_x.float(), target_peak_x.float()
-    )
-
-    # Spatial loss
+    # Spatial loss: MSE between center-of-mass of pred and target.
+    # Weights are normalized by sum (not softmax) so target_center equals exact
+    # target position and pred_center tracks actual spatial distribution.
     y_coords, x_coords = torch.meshgrid(
         torch.arange(image_size, device=pred.device),
         torch.arange(image_size, device=pred.device),
@@ -95,15 +84,11 @@ def custom_doppler_loss(
     coords = torch.stack((y_coords, x_coords), dim=-1).float()
 
     pred_weights = (
-        F.softmax(pred_2d.view(-1, image_size * image_size), dim=-1)
-        .view(-1, image_size, image_size)
-        .unsqueeze(-1)
-    )
+        pred_2d / (pred_2d.sum(dim=(1, 2), keepdim=True) + 1e-8)
+    ).unsqueeze(-1)
     target_weights = (
-        F.softmax(target_2d.view(-1, image_size * image_size), dim=-1)
-        .view(-1, image_size, image_size)
-        .unsqueeze(-1)
-    )
+        target_2d / (target_2d.sum(dim=(1, 2), keepdim=True) + 1e-8)
+    ).unsqueeze(-1)
 
     pred_center = (pred_weights * coords.unsqueeze(0)).sum(dim=(1, 2))
     target_center = (target_weights * coords.unsqueeze(0)).sum(dim=(1, 2))
@@ -117,7 +102,6 @@ def custom_doppler_loss(
     total_loss = (
         mse_loss
         + peak_weight * peak_loss
-        + shift_weight * shift_loss
         + spatial_weight * spatial_loss
         + background_weight * background_loss
     )

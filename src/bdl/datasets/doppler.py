@@ -36,7 +36,7 @@ class DopplerDataset(ProblemDatasetInterface):
             self.num_transmitters: int = 4
             self.image_size: int = 28
             self.vector_size: int = 1000
-            self.velocity_range = (50, 150)
+            self.velocity_range = (75, 75)
             self.position_range = (0, self.image_size * 1000)
 
             self.C_T = torch.tensor(
