@@ -1,0 +1,49 @@
+[project]
+name = "bistatic-doppler-localization"
+version = "0.1.0"
+description = "Target localization from bistatic Doppler shift measurements using neural networks"
+authors = [
+    {name = "Ian Goforth", email = "ian.goforth@gmail.com"},
+    {name = "PaRa"},
+]
+license = "MIT"
+requires-python = ">=3.12"
+
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "tqdm>=4.66.5",
+    "torch>=2.5.0",
+    "pytorch-triton-rocm",
+]
+
+[dependency-groups]
+dev = [
+    "ipywidgets",
+    "jupyter",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bdl"]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/nightly/rocm6.4"
+explicit = true
+
+[[tool.uv.index]]
+name = "triton-nightly"
+url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/Triton-Nightly/pypi/simple/"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+pytorch-triton-rocm = { index = "pytorch" }
+triton = { index = "triton-nightly" }
+
+[tool.uv]
+prerelease = "allow"
