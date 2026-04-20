@@ -50,15 +50,23 @@ class DopplerTimeSeriesDataset(ProblemDatasetInterface):
             self.position_range = (0, self.image_size * 1000)
 
             self.C_T = torch.tensor(299792458, dtype=self.dtype, device=self.device)
-            self.F_T = torch.tensor(140e6, dtype=self.dtype, device=self.device)
-            self.M1_T = -(self.F_T / self.C_T)
+
+            # Per-transmitter carrier frequencies. Real bistatic radar systems
+            # use FDMA (one frequency per transmitter) so the receiver can
+            # separate reflections. Identical frequencies also preserves
+            # geometric symmetries that produce mirror-image Doppler patterns.
+            self.tx_frequencies = torch.tensor(
+                [140e6, 145e6, 150e6, 155e6],
+                dtype=self.dtype,
+                device=self.device,
+            )
 
             self.transmitters = torch.tensor(
                 [
-                    [-36000, -36000, self.F_T],
-                    [64000, -36000, self.F_T],
-                    [-36000, 64000, self.F_T],
-                    [64000, 64000, self.F_T],
+                    [-36000, -36000],
+                    [64000, -36000],
+                    [-36000, 64000],
+                    [64000, 64000],
                 ],
                 dtype=self.dtype,
                 device=self.device,
@@ -196,13 +204,17 @@ class DopplerTimeSeriesDataset(ProblemDatasetInterface):
         ydot: torch.Tensor,
         xn: torch.Tensor,
         yn: torch.Tensor,
+        F: torch.Tensor,
     ) -> torch.Tensor:
-        """Bistatic Doppler shift. All inputs are (N,) tensors."""
+        """Bistatic Doppler shift for a transmitter at (xn, yn) with carrier F.
+
+        All input tensors are (N,); F is a scalar.
+        """
         n1 = xdot * x + ydot * y
         n2 = xdot * (x - xn) + ydot * (y - yn)
         d1 = torch.sqrt(x**2 + y**2)
         d2 = torch.sqrt((x - xn) ** 2 + (y - yn) ** 2)
-        m = self.M1_T * (n1 / d1 + n2 / d2)
+        m = -(F / self.C_T) * (n1 / d1 + n2 / d2)
         return torch.nan_to_num(m).squeeze()
 
     def generate_data(
@@ -264,8 +276,9 @@ class DopplerTimeSeriesDataset(ProblemDatasetInterface):
         for t in range(self.num_timesteps):
             x_t = xs + vx * (t * self.dt)
             y_t = ys + vy * (t * self.dt)
-            for i, (xn, yn, _freq) in enumerate(self.transmitters):
-                m_values = self._doppler_torch(x_t, y_t, vx, vy, xn, yn)
+            for i, (xn, yn) in enumerate(self.transmitters):
+                F = self.tx_frequencies[i]
+                m_values = self._doppler_torch(x_t, y_t, vx, vy, xn, yn, F)
                 indices = torch.floor(m_values + (self.vector_size / 2)).long()
                 valid_mask = (indices >= 0) & (indices < self.vector_size)
                 valid_batch = batch_idx[valid_mask]
